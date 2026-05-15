@@ -16,7 +16,7 @@ def run_flask():
     flask_app.run(host='0.0.0.0', port=8080)
 
 # === CONFIGURATION ===
-BOT_TOKEN = "8988718117:AAHewU_hbW-Z6b49GFrTDlu-geKSsjriuEE"
+BOT_TOKEN = "8465239312:AAE2WJf_vBLe-iAFLEJCIlZ5B-MeaH434Yg"
 API_URL = "https://movements-invoice-amanda-victoria.trycloudflare.com/search/number?number={}&key=mysecretkey123"
 CHANNEL_ID = "https://t.me/norecorddis"
 OWNER_USERNAME = "@dinamic80"
