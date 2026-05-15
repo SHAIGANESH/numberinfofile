@@ -17,7 +17,7 @@ def run_flask():
 
 # === CONFIGURATION ===
 BOT_TOKEN = "8988718117:AAHewU_hbW-Z6b49GFrTDlu-geKSsjriuEE"
-API_URL = "https://movements-invoice-amanda-victoria.trycloudflare.com/search/number?number=8271341969&key=mysecretkey123"
+API_URL = "https://movements-invoice-amanda-victoria.trycloudflare.com/search/number?number={}&key=mysecretkey123"
 CHANNEL_ID = "https://t.me/norecorddis"
 OWNER_USERNAME = "@dinamic80"
 OWNER_NAME = "NO RECORD"
