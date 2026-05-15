@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Flask
 from threading import Thread
 
-# === FLASK APP FOR PORT BINDING ===
+# === FLASK APP ===
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -24,48 +24,36 @@ def run_flask():
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === कॉन्फ़िगरेशन ===
+# === CONFIG ===
 BOT_TOKEN = "8465239312:AAE2WJf_vBLe-iAFLEJCIlZ5B-MeaH434Yg"
-
-# === नंबर इन्फो API ===
 API_URL = "https://darkietech.site/numapi.php?action=api&key=AKASH&number={}"
-
-# === चैनल ===
 CHANNEL_USERNAME = "@shairecord"
 CHANNEL_LINK = "https://t.me/shairecord"
 CHANNEL_NAME = "SHAIRECORD"
-
-# === एडमिन ===
 ADMIN_PASSWORD = "Sold@9819"
 ADMIN_CHAT_ID = "8481566006"
 
-# === डाटा स्टोर ===
+# === STORAGE ===
 verified_users = {}
 user_stats = {}
 admin_session = {}
 bot_start_time = datetime.now()
 
-# === चैनल मेंबरशिप चेक ===
+# === CHANNEL CHECK ===
 async def is_member(user_id: int, context: ContextTypes.DEFAULT_TYPE):
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
         return member.status in ["member", "administrator", "creator"]
-    except Exception as e:
-        logger.error(f"Member check error: {e}")
+    except:
         return False
 
-# === नंबर इन्फो फ़ेच करना ===
+# === API CALL ===
 def get_number_info(phone_number: str):
     try:
         url = API_URL.format(phone_number)
-        logger.info(f"API Call: {url}")
         response = requests.get(url, timeout=15)
-        logger.info(f"Response Status: {response.status_code}")
-        
         if response.status_code == 200:
             data = response.json()
-            logger.info(f"API Response: {data}")
-            
             if data.get("status") == "success" and data.get("result"):
                 return data["result"]
         return None
@@ -73,7 +61,7 @@ def get_number_info(phone_number: str):
         logger.error(f"API Error: {e}")
         return None
 
-# === रिजल्ट फॉर्मेट ===
+# === FORMAT RESULT ===
 def format_result(phone: str, data):
     record = data[0] if isinstance(data, list) and data else data
     
@@ -97,7 +85,6 @@ def format_result(phone: str, data):
     msg += f"\n━━━━━━━━━━━━━━━━━━━━\n"
     msg += f"⚡ *30 सेकंड में डिलीट होगा*\n"
     msg += f"🎉 *बिल्कुल मुफ्त!*"
-    
     return msg
 
 def log_search(user_id: int):
@@ -114,7 +101,7 @@ async def auto_delete(context, chat_id, msg_id, delay=30):
     except:
         pass
 
-# === यूजर कमांड्स ===
+# === USER COMMANDS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
@@ -125,8 +112,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ *वापस स्वागत है!* {user.first_name}\n\n"
             f"🔍 कोई भी 10 अंकों का नंबर भेजें\n"
             f"📊 आपके कुल सर्च: `{stats['total']}`\n\n"
-            f"📌 `/help` - मदद\n"
-            f"👑 `/admin` - एडमिन",
+            f"📌 `/help` - मदद",
             parse_mode="Markdown"
         )
         return
@@ -238,7 +224,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ 10 अंकों का सही नंबर भेजें")
 
-# === वेरिफिकेशन ===
 async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -265,7 +250,7 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=keyboard
         )
 
-# === एडमिन कमांड्स ===
+# === ADMIN COMMANDS ===
 async def admin_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     args = context.args
@@ -342,16 +327,15 @@ async def admin_logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del admin_session[uid]
     await update.message.reply_text("🔒 लॉगआउट")
 
-# === एरर हैंडलर ===
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.error(f"Error: {context.error}")
-
 # === MAIN ===
 def main():
+    # Flask thread for port binding
     Thread(target=run_flask, daemon=True).start()
     
+    # Build application
     app = Application.builder().token(BOT_TOKEN).build()
     
+    # Add handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("mystats", mystats))
@@ -365,7 +349,6 @@ def main():
     app.add_handler(CommandHandler("broadcast", admin_broadcast))
     app.add_handler(CommandHandler("adminlogout", admin_logout))
     app.add_handler(CallbackQueryHandler(verify_callback, pattern="^verify$"))
-    app.add_error_handler(error_handler)
     
     print("="*50)
     print("✅ नंबर इन्फो बॉट चालू!")
@@ -373,7 +356,8 @@ def main():
     print(f"🎉 बिल्कुल मुफ्त!")
     print("="*50)
     
-    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+    # Start polling
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
