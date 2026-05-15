@@ -140,8 +140,12 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("✅ Bot starting with Flask health check...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+   print("✅ Bot starting with Flask health check...")
 
+app.run_polling(
+    allowed_updates=Update.ALL_TYPES,
+    drop_pending_updates=True,
+    timeout=30
+)
 if __name__ == "__main__":
     main()
