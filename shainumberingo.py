@@ -5,6 +5,7 @@ from flask import Flask
 from threading import Thread
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, CallbackQueryHandler
+
 # === Flask app for health check ===
 flask_app = Flask('')
 
@@ -140,12 +141,14 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-   print("✅ Bot starting with Flask health check...")
+    print("✅ Bot starting with Flask health check...")
+    
+    # CORRECTED: run_polling inside main, proper indentation
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,
+        timeout=30
+    )
 
-app.run_polling(
-    allowed_updates=Update.ALL_TYPES,
-    drop_pending_updates=True,
-    timeout=30
-)
 if __name__ == "__main__":
     main()
