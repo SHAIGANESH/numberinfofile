@@ -30,7 +30,6 @@ MAX_SEARCHES_PER_USER = 5
 RESET_HOURS = 24
 
 # Store user search data
-# Format: {user_id: {"remaining": 5, "reset_time": datetime, "search_history": [timestamps], "total_searches": 0}}
 user_data_store = {}
 
 # Store admin analytics
@@ -62,7 +61,6 @@ def get_user_remaining(user_id: str):
     user_data = get_user_data(user_id)
     now = datetime.now()
     
-    # Check if reset needed
     if now >= user_data["reset_time"]:
         user_data["remaining"] = MAX_SEARCHES_PER_USER
         user_data["reset_time"] = now + timedelta(hours=RESET_HOURS)
@@ -74,28 +72,23 @@ def decrement_user_search(user_id: str):
     user_data = get_user_data(user_id)
     now = datetime.now()
     
-    # Reset if needed
     if now >= user_data["reset_time"]:
         user_data["remaining"] = MAX_SEARCHES_PER_USER - 1
         user_data["reset_time"] = now + timedelta(hours=RESET_HOURS)
     else:
         user_data["remaining"] -= 1
     
-    # Log search history
     user_data["search_history"].append(now)
     user_data["total_searches"] += 1
     
-    # Update admin analytics
     admin_analytics["lifetime"]["total_searches"] += 1
     
-    # Daily analytics
     date_key = now.strftime("%Y-%m-%d")
     if date_key not in admin_analytics["daily"]:
         admin_analytics["daily"][date_key] = {"count": 0, "users": set()}
     admin_analytics["daily"][date_key]["count"] += 1
     admin_analytics["daily"][date_key]["users"].add(user_id)
     
-    # Monthly analytics
     month_key = now.strftime("%Y-%m")
     if month_key not in admin_analytics["monthly"]:
         admin_analytics["monthly"][month_key] = {"count": 0, "users": set()}
@@ -135,10 +128,36 @@ def admin_required(func):
         return await func(update, context, *args, **kwargs)
     return wrapper
 
-# === ADMIN ANALYTICS COMMANDS ===
+# === ADMIN COMMANDS ===
+@admin_required
+async def admin_panel(update: Update, context: CallbackContext):
+    """Show admin panel with all commands (called after login)"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Quick Stats", callback_data="admin_stats")],
+        [InlineKeyboardButton("📅 Daily Analytics", callback_data="admin_daily")],
+        [InlineKeyboardButton("📆 Monthly Analytics", callback_data="admin_monthly")],
+        [InlineKeyboardButton("🏆 Lifetime Analytics", callback_data="admin_lifetime")],
+        [InlineKeyboardButton("👤 User Stats", callback_data="admin_userstats")],
+        [InlineKeyboardButton("🏅 Top Users", callback_data="admin_top")],
+        [InlineKeyboardButton("🔄 Reset User Limit", callback_data="admin_reset")],
+        [InlineKeyboardButton("⚙️ Set Custom Limit", callback_data="admin_setlimit")],
+        [InlineKeyboardButton("🔒 Logout", callback_data="admin_logout")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"👑 *Admin Panel*\n\n"
+        f"Welcome {OWNER_NAME}!\n\n"
+        f"📊 *Total Users:* {len(user_data_store)}\n"
+        f"🔍 *Total Searches:* {admin_analytics['lifetime']['total_searches']}\n"
+        f"⚙️ *Default Limit:* {MAX_SEARCHES_PER_USER} per {RESET_HOURS}h\n\n"
+        f"Use the buttons below or type commands directly:",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
 @admin_required
 async def daily_stats(update: Update, context: CallbackContext):
-    """Show today's search statistics"""
     today = datetime.now().strftime("%Y-%m-%d")
     stats = admin_analytics["daily"].get(today, {"count": 0, "users": set()})
     active_users = len(stats["users"])
@@ -153,7 +172,6 @@ async def daily_stats(update: Update, context: CallbackContext):
 
 @admin_required
 async def monthly_stats(update: Update, context: CallbackContext):
-    """Show current month's search statistics"""
     current_month = datetime.now().strftime("%Y-%m")
     stats = admin_analytics["monthly"].get(current_month, {"count": 0, "users": set()})
     active_users = len(stats["users"])
@@ -161,13 +179,12 @@ async def monthly_stats(update: Update, context: CallbackContext):
     message = f"📆 *Monthly Statistics* – {current_month}\n\n"
     message += f"🔍 Total searches this month: `{stats['count']}`\n"
     message += f"👥 Active users this month: `{active_users}`\n"
-    message += f"📊 Per user limit: `{MAX_SEARCHES_PER_USER}` searches\n"
+    message += f"📊 Per user limit: `{MAX_SEARCHES_PER_USER}` searches"
     
     await update.message.reply_text(message, parse_mode="Markdown")
 
 @admin_required
 async def lifetime_stats(update: Update, context: CallbackContext):
-    """Show lifetime bot statistics"""
     total_users = admin_analytics["lifetime"]["total_users"]
     total_searches = admin_analytics["lifetime"]["total_searches"]
     avg_searches_per_user = total_searches / total_users if total_users > 0 else 0
@@ -182,11 +199,24 @@ async def lifetime_stats(update: Update, context: CallbackContext):
     await update.message.reply_text(message, parse_mode="Markdown")
 
 @admin_required
+async def quick_stats(update: Update, context: CallbackContext):
+    total_users = len(user_data_store)
+    total_searches = admin_analytics["lifetime"]["total_searches"]
+    today_searches = admin_analytics["daily"].get(datetime.now().strftime("%Y-%m-%d"), {"count": 0})["count"]
+    
+    message = f"📊 *Quick Statistics*\n\n"
+    message += f"👥 Total users: `{total_users}`\n"
+    message += f"🔍 Total searches: `{total_searches}`\n"
+    message += f"📅 Today's searches: `{today_searches}`\n"
+    message += f"⚙️ Limit per user: `{MAX_SEARCHES_PER_USER}`"
+    
+    await update.message.reply_text(message, parse_mode="Markdown")
+
+@admin_required
 async def user_stats(update: Update, context: CallbackContext):
-    """Show specific user statistics"""
     args = context.args
     if len(args) != 1:
-        await update.message.reply_text("❌ Usage: `/user_stats <user_id>`", parse_mode="Markdown")
+        await update.message.reply_text("❌ Usage: `/user_stats <user_id>`\n\nExample: `/user_stats 8481566006`", parse_mode="Markdown")
         return
     
     target_user = args[0]
@@ -203,13 +233,13 @@ async def user_stats(update: Update, context: CallbackContext):
     message += f"✅ Total searches ever: `{user_data['total_searches']}`\n"
     message += f"⏰ Reset in: `{reset_left}`\n"
     message += f"📅 First seen: `{user_data['first_seen'].strftime('%Y-%m-%d %H:%M')}`\n"
-    message += f"🕒 Last search: `{user_data['search_history'][-1].strftime('%Y-%m-%d %H:%M') if user_data['search_history'] else 'Never'}`"
+    last_search = user_data['search_history'][-1].strftime('%Y-%m-%d %H:%M') if user_data['search_history'] else 'Never'
+    message += f"🕒 Last search: `{last_search}`"
     
     await update.message.reply_text(message, parse_mode="Markdown")
 
 @admin_required
 async def top_users(update: Update, context: CallbackContext):
-    """Show top 10 users by total searches"""
     if not user_data_store:
         await update.message.reply_text("No users yet.")
         return
@@ -218,16 +248,16 @@ async def top_users(update: Update, context: CallbackContext):
     
     message = f"🏅 *Top 10 Users (by total searches)*\n\n"
     for idx, (uid, data) in enumerate(sorted_users, 1):
-        message += f"{idx}. `{uid[:8]}...` – {data['total_searches']} searches\n"
+        short_id = uid[:8] + "..." if len(uid) > 8 else uid
+        message += f"{idx}. `{short_id}` – {data['total_searches']} searches\n"
     
     await update.message.reply_text(message, parse_mode="Markdown")
 
 @admin_required
 async def reset_user_limit(update: Update, context: CallbackContext):
-    """Reset a specific user's limit"""
     args = context.args
     if len(args) != 1:
-        await update.message.reply_text("❌ Usage: `/reset_limit <user_id>`", parse_mode="Markdown")
+        await update.message.reply_text("❌ Usage: `/reset_limit <user_id>`\n\nExample: `/reset_limit 8481566006`", parse_mode="Markdown")
         return
     
     target_user = args[0]
@@ -235,16 +265,15 @@ async def reset_user_limit(update: Update, context: CallbackContext):
         now = datetime.now()
         user_data_store[target_user]["remaining"] = MAX_SEARCHES_PER_USER
         user_data_store[target_user]["reset_time"] = now + timedelta(hours=RESET_HOURS)
-        await update.message.reply_text(f"✅ Limit reset for user `{target_user}`", parse_mode="Markdown")
+        await update.message.reply_text(f"✅ Limit reset to {MAX_SEARCHES_PER_USER} for user `{target_user}`", parse_mode="Markdown")
     else:
-        await update.message.reply_text(f"❌ User `{target_user}` not found. Create first by searching.", parse_mode="Markdown")
+        await update.message.reply_text(f"❌ User `{target_user}` not found. They need to search at least once first.", parse_mode="Markdown")
 
 @admin_required
 async def set_limit(update: Update, context: CallbackContext):
-    """Set custom limit for a user"""
     args = context.args
     if len(args) != 2:
-        await update.message.reply_text("❌ Usage: `/set_limit <user_id> <new_limit>`", parse_mode="Markdown")
+        await update.message.reply_text("❌ Usage: `/set_limit <user_id> <new_limit>`\n\nExample: `/set_limit 8481566006 10`", parse_mode="Markdown")
         return
     
     target_user = args[0]
@@ -261,43 +290,18 @@ async def set_limit(update: Update, context: CallbackContext):
                 "total_searches": 0,
                 "first_seen": now
             }
+            admin_analytics["lifetime"]["total_users"] = len(user_data_store)
         await update.message.reply_text(f"✅ Limit set to `{new_limit}` for user `{target_user}`", parse_mode="Markdown")
     except ValueError:
-        await update.message.reply_text("❌ Invalid limit value")
-
-# === BASIC ADMIN COMMANDS ===
-@admin_required
-async def stats(update: Update, context: CallbackContext):
-    """Show quick bot stats"""
-    total_users = len(user_data_store)
-    total_searches = admin_analytics["lifetime"]["total_searches"]
-    today_searches = admin_analytics["daily"].get(datetime.now().strftime("%Y-%m-%d"), {"count": 0})["count"]
-    
-    message = f"📊 *Bot Statistics*\n\n"
-    message += f"👥 Total users: `{total_users}`\n"
-    message += f"🔍 Total searches: `{total_searches}`\n"
-    message += f"📅 Today's searches: `{today_searches}`\n"
-    message += f"⚙️ Limit per user: `{MAX_SEARCHES_PER_USER}`\n\n"
-    message += f"📋 *Admin commands:*\n"
-    message += f"`/daily` – Today's stats\n"
-    message += f"`/monthly` – Monthly stats\n"
-    message += f"`/lifetime` – Lifetime stats\n"
-    message += f"`/user_stats <id>` – Specific user\n"
-    message += f"`/top` – Top 10 users"
-    
-    await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text("❌ Invalid limit value. Use a number.")
 
 @admin_required
 async def broadcast(update: Update, context: CallbackContext):
     message = " ".join(context.args)
     if not message:
-        await update.message.reply_text("❌ Usage: `/broadcast <msg>`")
+        await update.message.reply_text("❌ Usage: `/broadcast <your message>`")
         return
-    await update.message.reply_text(f"📢 Broadcast sent (simulated): {message}")
-
-@admin_required
-async def view_logs(update: Update, context: CallbackContext):
-    await update.message.reply_text("📜 Logs: No errors reported.")
+    await update.message.reply_text(f"📢 Broadcast sent (simulated):\n\n{message}")
 
 # === USER COMMANDS ===
 async def start(update: Update, context: CallbackContext):
@@ -319,42 +323,78 @@ async def start(update: Update, context: CallbackContext):
         f"📊 *Your remaining searches:* {remaining}/{MAX_SEARCHES_PER_USER}\n"
         f"⏰ Resets in: {get_reset_time_left(user_id)}\n\n"
         f"✅ Each number search consumes 1 limit.\n"
-        f"🔄 Limit resets every {RESET_HOURS} hours.\n\n"
-        f"👑 *Admin:* {OWNER_NAME} {OWNER_USERNAME}",
+        f"🔄 Limit resets every {RESET_HOURS} hours.",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 async def admin_login(update: Update, context: CallbackContext):
+    """Handle admin login with password"""
     user_id = str(update.effective_user.id)
     args = context.args
+    
     if len(args) != 1:
-        await update.message.reply_text("❌ Usage: `/admin <password>`", parse_mode="Markdown")
-        return
-    if args[0] == ADMIN_PASSWORD:
-        admin_authenticated[user_id] = True
         await update.message.reply_text(
-            "✅ *Admin access granted.*\n\n"
-            "📊 *Available admin commands:*\n"
-            "`/stats` – Quick stats\n"
-            "`/daily` – Daily analytics\n"
-            "`/monthly` – Monthly analytics\n"
-            "`/lifetime` – Lifetime analytics\n"
-            "`/user_stats <id>` – User details\n"
-            "`/top` – Top 10 users\n"
-            "`/reset_limit <id>` – Reset user limit\n"
-            "`/set_limit <id> <num>` – Set custom limit\n"
-            "`/logout` – End admin session",
+            "❌ *Admin Login*\n\nUsage: `/admin Sold@9819`\n\n"
+            f"👑 Owner: {OWNER_NAME} ({OWNER_USERNAME})",
             parse_mode="Markdown"
         )
+        return
+    
+    if args[0] == ADMIN_PASSWORD:
+        admin_authenticated[user_id] = True
+        
+        # Show admin panel after successful login
+        keyboard = [
+            [InlineKeyboardButton("📊 Quick Stats", callback_data="admin_stats")],
+            [InlineKeyboardButton("📅 Daily Analytics", callback_data="admin_daily")],
+            [InlineKeyboardButton("📆 Monthly Analytics", callback_data="admin_monthly")],
+            [InlineKeyboardButton("🏆 Lifetime Analytics", callback_data="admin_lifetime")],
+            [InlineKeyboardButton("👤 User Stats", callback_data="admin_userstats")],
+            [InlineKeyboardButton("🏅 Top Users", callback_data="admin_top")],
+            [InlineKeyboardButton("🔄 Reset User Limit", callback_data="admin_reset")],
+            [InlineKeyboardButton("⚙️ Set Custom Limit", callback_data="admin_setlimit")],
+            [InlineKeyboardButton("🔒 Logout", callback_data="admin_logout")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            f"✅ *Admin access granted!*\n\n"
+            f"👑 Welcome {OWNER_NAME}\n\n"
+            f"📊 *Bot Status:*\n"
+            f"• Total Users: `{len(user_data_store)}`\n"
+            f"• Total Searches: `{admin_analytics['lifetime']['total_searches']}`\n"
+            f"• Default Limit: `{MAX_SEARCHES_PER_USER}` searches per {RESET_HOURS}h\n\n"
+            f"📋 *Admin Panel:*\n"
+            f"Use the buttons below or type commands directly.\n\n"
+            f"📌 *Commands:*\n"
+            f"`/daily` – Today's stats\n"
+            f"`/monthly` – Monthly stats\n"
+            f"`/lifetime` – Lifetime stats\n"
+            f"`/stats` – Quick stats\n"
+            f"`/user_stats <id>` – Specific user\n"
+            f"`/top` – Top 10 users\n"
+            f"`/reset_limit <id>` – Reset to 5\n"
+            f"`/set_limit <id> <num>` – Custom limit\n"
+            f"`/logout` – End session",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
     else:
-        await update.message.reply_text("❌ Incorrect password.")
+        await update.message.reply_text(
+            "❌ *Incorrect password!*\n\n"
+            "Access denied.\n"
+            f"👑 Owner: {OWNER_NAME}",
+            parse_mode="Markdown"
+        )
 
 async def admin_logout(update: Update, context: CallbackContext):
     user_id = str(update.effective_user.id)
     if user_id in admin_authenticated:
         del admin_authenticated[user_id]
-        await update.message.reply_text("🔒 Admin session ended.")
+        await update.message.reply_text("🔒 *Admin session ended.*\n\nUse `/admin {ADMIN_PASSWORD}` to login again.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("❌ You are not logged in as admin.")
 
 async def handle_number(update: Update, context: CallbackContext):
     user_id = str(update.effective_user.id)
@@ -365,7 +405,6 @@ async def handle_number(update: Update, context: CallbackContext):
         await update.message.reply_text("❌ Send a valid 10+ digit number.")
         return
     
-    # Check remaining searches
     remaining = get_user_remaining(user_id)
     if remaining <= 0:
         reset_time_left = get_reset_time_left(user_id)
@@ -373,12 +412,11 @@ async def handle_number(update: Update, context: CallbackContext):
             f"⚠️ *Limit Exceeded!*\n\n"
             f"You have used all {MAX_SEARCHES_PER_USER} searches.\n"
             f"⏰ Resets in: {reset_time_left}\n\n"
-            f"📢 Join channel for updates: {CHANNEL_ID}",
+            f"📢 Join channel: {CHANNEL_ID}",
             parse_mode="Markdown"
         )
         return
     
-    # Process the search
     await update.message.chat.send_action(action="typing")
     info = get_number_info(phone_number)
     
@@ -386,7 +424,6 @@ async def handle_number(update: Update, context: CallbackContext):
         await update.message.reply_text("⚠️ No information found for this number.")
         return
     
-    # Decrement search count AFTER successful API call
     decrement_user_search(user_id)
     new_remaining = get_user_remaining(user_id)
     
@@ -398,12 +435,12 @@ async def handle_number(update: Update, context: CallbackContext):
     message += f"🆔 Aadhar: {record.get('aadhar', 'N/A')}\n"
     message += f"📍 Address: {record.get('address', 'N/A')}\n"
     message += f"📧 Email: {record.get('email', 'N/A')}\n\n"
-    message += f"📊 *Remaining searches:* {new_remaining}/{MAX_SEARCHES_PER_USER}\n"
+    message += f"📊 *Remaining:* {new_remaining}/{MAX_SEARCHES_PER_USER}\n"
     message += f"⏰ Resets in: {get_reset_time_left(user_id)}"
     
     keyboard = [
         [InlineKeyboardButton("📢 Join Channel", url=CHANNEL_ID)],
-        [InlineKeyboardButton("📊 Check My Limit", callback_data="mylimit")],
+        [InlineKeyboardButton("📊 My Limit", callback_data="mylimit")],
         [InlineKeyboardButton("🔄 New Search", callback_data="new")]
     ]
     
@@ -414,52 +451,68 @@ async def button_callback(update: Update, context: CallbackContext):
     user_id = str(query.from_user.id)
     await query.answer()
     
-    if query.data == "new":
-        await query.message.reply_text("Send another phone number:")
+    # Admin button callbacks
+    if query.data == "admin_stats":
+        total_users = len(user_data_store)
+        total_searches = admin_analytics["lifetime"]["total_searches"]
+        today_searches = admin_analytics["daily"].get(datetime.now().strftime("%Y-%m-%d"), {"count": 0})["count"]
+        await query.message.reply_text(
+            f"📊 *Quick Stats*\n\n👥 Users: {total_users}\n🔍 Searches: {total_searches}\n📅 Today: {today_searches}",
+            parse_mode="Markdown"
+        )
+    elif query.data == "admin_daily":
+        today = datetime.now().strftime("%Y-%m-%d")
+        stats = admin_analytics["daily"].get(today, {"count": 0, "users": set()})
+        await query.message.reply_text(f"📅 *Daily* – {today}\n🔍 Searches: {stats['count']}\n👥 Users: {len(stats['users'])}", parse_mode="Markdown")
+    elif query.data == "admin_monthly":
+        month = datetime.now().strftime("%Y-%m")
+        stats = admin_analytics["monthly"].get(month, {"count": 0, "users": set()})
+        await query.message.reply_text(f"📆 *Monthly* – {month}\n🔍 Searches: {stats['count']}\n👥 Users: {len(stats['users'])}", parse_mode="Markdown")
+    elif query.data == "admin_lifetime":
+        await lifetime_stats(update, context)
+    elif query.data == "admin_top":
+        await top_users(update, context)
+    elif query.data == "admin_logout":
+        if user_id in admin_authenticated:
+            del admin_authenticated[user_id]
+            await query.message.reply_text("🔒 Logged out.")
+    elif query.data == "admin_userstats":
+        await query.message.reply_text("Send `/user_stats <user_id>`\nExample: `/user_stats 8481566006`")
+    elif query.data == "admin_reset":
+        await query.message.reply_text("Send `/reset_limit <user_id>`\nExample: `/reset_limit 8481566006`")
+    elif query.data == "admin_setlimit":
+        await query.message.reply_text("Send `/set_limit <user_id> <limit>`\nExample: `/set_limit 8481566006 10`")
     
+    # User button callbacks
+    elif query.data == "new":
+        await query.message.reply_text("Send another phone number:")
     elif query.data == "mylimit":
         remaining = get_user_remaining(user_id)
         reset_time = get_reset_time_left(user_id)
         user_data = get_user_data(user_id)
         await query.message.reply_text(
-            f"📊 *Your Search Limit*\n\n"
-            f"🔍 Remaining: {remaining}/{MAX_SEARCHES_PER_USER}\n"
-            f"✅ Total searches ever: {user_data['total_searches']}\n"
-            f"⏰ Resets in: {reset_time}\n"
-            f"🔄 Limit resets every {RESET_HOURS} hours.",
+            f"📊 *Your Limit*\n\n🔍 Remaining: {remaining}/{MAX_SEARCHES_PER_USER}\n✅ Total: {user_data['total_searches']}\n⏰ Resets in: {reset_time}",
             parse_mode="Markdown"
         )
-    
     elif query.data == "about":
-        await query.message.reply_text(
-            f"🤖 *Number Info Bot*\n\n"
-            f"👑 Owner: {OWNER_NAME} {OWNER_USERNAME}\n"
-            f"📢 Channel: {CHANNEL_ID}\n"
-            f"🔒 Limit: {MAX_SEARCHES_PER_USER} searches per {RESET_HOURS}h\n"
-            f"📊 Admin analytics: Daily, Monthly, Lifetime",
-            parse_mode="Markdown"
-        )
+        await query.message.reply_text(f"🤖 *Number Info Bot*\n\n👑 Owner: {OWNER_NAME}\n📢 Channel: {CHANNEL_ID}\n🔒 Limit: {MAX_SEARCHES_PER_USER}/24h")
 
 async def unknown(update: Update, context: CallbackContext):
-    await update.message.reply_text("❓ Send a phone number (digits only) or /admin to login.")
+    await update.message.reply_text("❓ Send a phone number (digits only) or `/admin` to login.", parse_mode="Markdown")
 
 # === MAIN ===
 def main():
-    # Start Flask thread
     Thread(target=run_flask).start()
     
-    # Start bot
     app = Application.builder().token(BOT_TOKEN).build()
     
     # User commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_login))
     app.add_handler(CommandHandler("logout", admin_logout))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
-    app.add_handler(CallbackQueryHandler(button_callback))
     
-    # Admin analytics commands
-    app.add_handler(CommandHandler("stats", stats))
+    # Admin commands
+    app.add_handler(CommandHandler("stats", quick_stats))
     app.add_handler(CommandHandler("daily", daily_stats))
     app.add_handler(CommandHandler("monthly", monthly_stats))
     app.add_handler(CommandHandler("lifetime", lifetime_stats))
@@ -468,15 +521,13 @@ def main():
     app.add_handler(CommandHandler("reset_limit", reset_user_limit))
     app.add_handler(CommandHandler("set_limit", set_limit))
     app.add_handler(CommandHandler("broadcast", broadcast))
-    app.add_handler(CommandHandler("logs", view_logs))
     
-    print("✅ Bot started with 5-search limit + Admin analytics (Daily/Monthly/Lifetime)")
+    # Message handlers
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_number))
+    app.add_handler(CallbackQueryHandler(button_callback))
     
-    app.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,
-        timeout=30
-    )
+    print("✅ Bot started with working admin login and full menu!")
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, timeout=30)
 
 if __name__ == "__main__":
     main()
