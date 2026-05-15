@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Flask
 from threading import Thread
 
-# === FLASK APP FOR PORT BINDING (Render के लिए जरूरी) ===
+# === FLASK APP FOR PORT BINDING ===
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -25,10 +25,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # === कॉन्फ़िगरेशन ===
-BOT_TOKEN = "8752831635:AAHkSr79OvCK55Q2QzPmnPUQ5Bf5Pa0Pin4"
+BOT_TOKEN = "8465239312:AAE2WJf_vBLe-iAFLEJCIlZ5B-MeaH434Yg"
 
 # === नंबर इन्फो API ===
-# आपकी पुरानी API जो काम कर रही थी
 API_URL = "https://darkietech.site/numapi.php?action=api&key=AKASH&number={}"
 
 # === चैनल ===
@@ -38,7 +37,7 @@ CHANNEL_NAME = "SHAIRECORD"
 
 # === एडमिन ===
 ADMIN_PASSWORD = "Sold@9819"
-ADMIN_CHAT_ID = "8481566006"  # अपना Telegram ID डालो
+ADMIN_CHAT_ID = "8481566006"
 
 # === डाटा स्टोर ===
 verified_users = {}
@@ -74,7 +73,7 @@ def get_number_info(phone_number: str):
         logger.error(f"API Error: {e}")
         return None
 
-# === रिजल्ट फॉर्मेट करना ===
+# === रिजल्ट फॉर्मेट ===
 def format_result(phone: str, data):
     record = data[0] if isinstance(data, list) and data else data
     
@@ -88,7 +87,6 @@ def format_result(phone: str, data):
     msg += f"📍 *पता:* `{record.get('address', 'N/A')}`\n"
     msg += f"📡 *सर्कल:* `{record.get('circle', 'N/A')}`\n"
     
-    # आधार नंबर
     aadhar = record.get('aadhar')
     if aadhar and str(aadhar).strip() and aadhar != "null":
         msg += f"🆔 *आधार:* `{aadhar}`\n"
@@ -102,22 +100,18 @@ def format_result(phone: str, data):
     
     return msg
 
-# === यूजर सर्च लॉग ===
 def log_search(user_id: int):
     today = datetime.now().strftime("%Y-%m-%d")
     if user_id not in user_stats:
         user_stats[user_id] = {"total": 0, "daily": {}}
     user_stats[user_id]["total"] += 1
-    if today not in user_stats[user_id]["daily"]:
-        user_stats[user_id]["daily"][today] = 0
-    user_stats[user_id]["daily"][today] += 1
+    user_stats[user_id]["daily"][today] = user_stats[user_id]["daily"].get(today, 0) + 1
 
-# === ऑटो डिलीट ===
 async def auto_delete(context, chat_id, msg_id, delay=30):
     await asyncio.sleep(delay)
     try:
         await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
-    except Exception:
+    except:
         pass
 
 # === यूजर कमांड्स ===
@@ -132,7 +126,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔍 कोई भी 10 अंकों का नंबर भेजें\n"
             f"📊 आपके कुल सर्च: `{stats['total']}`\n\n"
             f"📌 `/help` - मदद\n"
-            f"👑 `/admin` - एडमिन लॉगिन",
+            f"👑 `/admin` - एडमिन",
             parse_mode="Markdown"
         )
         return
@@ -143,7 +137,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     
     await update.message.reply_text(
-        f"⚠️ *चैनल जॉइन करना जरूरी है* ⚠️\n\n"
+        f"⚠️ *चैनल जॉइन करना जरूरी है*\n\n"
         f"नमस्ते {user.first_name}!\n\n"
         f"बॉट उपयोग करने के लिए जॉइन करें:\n"
         f"📢 *{CHANNEL_NAME}*: {CHANNEL_LINK}\n\n"
@@ -155,26 +149,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        f"📖 *नंबर इन्फो बॉट - हेल्प गाइड*\n\n"
+        f"📖 *नंबर इन्फो बॉट - हेल्प*\n\n"
         f"1️⃣ चैनल जॉइन करें: {CHANNEL_LINK}\n"
         f"2️⃣ वेरिफाई करें\n"
         f"3️⃣ 10 अंकों का नंबर भेजें\n\n"
-        f"🔹 `/num 9876543210` - नंबर सर्च\n"
-        f"🔹 `/mystats` - अपने आंकड़े\n"
-        f"🔹 `/ping` - बॉट स्टेटस\n\n"
-        f"👑 एडमिन: @dinamic80\n"
-        f"🎉 *बॉट पूरी तरह मुफ्त है!*",
+        f"🔹 `/num 9876543210` - सर्च\n"
+        f"🔹 `/mystats` - आंकड़े\n"
+        f"🔹 `/ping` - स्टेटस\n\n"
+        f"👑 एडमिन: @dinamic80",
         parse_mode="Markdown"
     )
 
 async def mystats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     stats = user_stats.get(user_id, {"total": 0})
-    await update.message.reply_text(
-        f"📊 *आपके आंकड़े*\n\n"
-        f"✅ कुल सर्च: `{stats['total']}`",
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text(f"📊 *आपके सर्च:* `{stats['total']}`", parse_mode="Markdown")
 
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     start = time.time()
@@ -189,8 +178,7 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📡 लेटेंसी: `{round((end-start)*1000)}ms`\n"
         f"⏱️ अपटाइम: `{hours}h {minutes}m`\n"
         f"👥 यूजर्स: `{len(verified_users)}`\n"
-        f"🔍 कुल सर्च: `{sum(s['total'] for s in user_stats.values())}`\n"
-        f"🎉 *बॉट 24x7 चालू है!*",
+        f"🔍 सर्च: `{sum(s['total'] for s in user_stats.values())}`",
         parse_mode="Markdown"
     )
 
@@ -199,7 +187,7 @@ async def num_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     
     if user_id not in verified_users:
-        await update.message.reply_text("⚠️ पहले /start करके चैनल जॉइन करें और वेरिफाई करें!")
+        await update.message.reply_text("⚠️ पहले /start करें और चैनल जॉइन करें!")
         return
     
     if not args:
@@ -208,7 +196,7 @@ async def num_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     phone = ''.join(filter(str.isdigit, args[0]))
     if len(phone) != 10:
-        await update.message.reply_text("❌ कृपया 10 अंकों का सही नंबर भेजें")
+        await update.message.reply_text("❌ 10 अंकों का सही नंबर भेजें")
         return
     
     msg = await update.message.reply_text(f"🔍 *खोज जारी...* `{phone}`", parse_mode="Markdown")
@@ -222,14 +210,14 @@ async def num_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         asyncio.create_task(auto_delete(context, msg.chat_id, msg.message_id, 30))
         asyncio.create_task(auto_delete(context, update.message.chat_id, update.message.message_id, 30))
     else:
-        err_msg = await update.message.reply_text(f"⚠️ नंबर `{phone}` की जानकारी नहीं मिली।\n\n• नंबर सही है?\n• नेटवर्क ठीक है?")
+        err_msg = await update.message.reply_text(f"⚠️ नंबर `{phone}` की जानकारी नहीं मिली")
         asyncio.create_task(auto_delete(context, err_msg.chat_id, err_msg.message_id, 30))
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if user_id not in verified_users:
-        await update.message.reply_text("⚠️ पहले /start करके चैनल जॉइन करें और वेरिफाई करें!")
+        await update.message.reply_text("⚠️ पहले /start करें और चैनल जॉइन करें!")
         return
     
     phone = ''.join(filter(str.isdigit, update.message.text))
@@ -248,7 +236,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             err_msg = await update.message.reply_text(f"⚠️ नंबर `{phone}` की जानकारी नहीं मिली")
             asyncio.create_task(auto_delete(context, err_msg.chat_id, err_msg.message_id, 30))
     else:
-        await update.message.reply_text("❌ कृपया 10 अंकों का सही नंबर भेजें")
+        await update.message.reply_text("❌ 10 अंकों का सही नंबर भेजें")
 
 # === वेरिफिकेशन ===
 async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -262,22 +250,17 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_stats[user_id] = {"total": 0, "daily": {}}
         
         await query.message.edit_text(
-            f"✅ *वेरिफिकेशन सफल!*\n\n"
-            f"अब आप नंबर इन्फो बॉट का उपयोग कर सकते हैं।\n\n"
-            f"🔍 कोई भी 10 अंकों का नंबर भेजें\n"
-            f"🎉 *बिल्कुल मुफ्त!*\n\n"
-            f"📌 `/help` - मदद के लिए",
+            f"✅ *वेरिफाइड!*\n\n"
+            f"अब 10 अंकों का नंबर भेजें\n🎉 *मुफ्त!*",
             parse_mode="Markdown"
         )
     else:
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(f"📢 जॉइन करें {CHANNEL_NAME}", url=CHANNEL_LINK)],
-            [InlineKeyboardButton("✅ मैं जॉइन कर चुका हूँ", callback_data="verify")]
+            [InlineKeyboardButton("✅ जॉइन कर चुका", callback_data="verify")]
         ])
         await query.message.edit_text(
-            f"❌ *आप चैनल में शामिल नहीं हुए!*\n\n"
-            f"कृपया पहले चैनल जॉइन करें:\n📢 {CHANNEL_LINK}\n\n"
-            f"जॉइन करने के बाद फिर से वेरिफाई करें।",
+            f"❌ *चैनल नहीं जॉइन किया!*\n\nपहले जॉइन करें: {CHANNEL_LINK}",
             parse_mode="Markdown",
             reply_markup=keyboard
         )
@@ -296,156 +279,100 @@ async def admin_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     admin_session[user_id] = True
-    
     await update.message.reply_text(
-        f"✅ *एडमिन एक्सेस दिया गया!*\n\n"
-        f"👑 स्वागत है {update.effective_user.first_name}\n\n"
-        f"📊 *बॉट स्टेटस*\n"
-        f"• वेरिफाइड यूजर्स: `{len(verified_users)}`\n"
-        f"• कुल सर्च: `{sum(s['total'] for s in user_stats.values())}`\n"
-        f"🎉 *बॉट 24x7 चालू है!*\n\n"
-        f"📋 *एडमिन कमांड:*\n"
-        f"`/stats` - बॉट आंकड़े\n"
-        f"`/users` - यूजर्स लिस्ट\n"
-        f"`/userfind <id>` - यूजर ढूंढें\n"
-        f"`/broadcast <msg>` - सभी को मैसेज\n"
-        f"`/adminlogout` - लॉगआउट",
+        f"✅ *एडमिन एक्सेस*\n\n"
+        f"👑 वेरिफाइड: `{len(verified_users)}`\n"
+        f"🔍 सर्च: `{sum(s['total'] for s in user_stats.values())}`\n\n"
+        f"📋 कमांड:\n`/stats` `/users` `/userfind <id>` `/broadcast <msg>`",
         parse_mode="Markdown"
     )
 
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    total_searches = sum(s['total'] for s in user_stats.values())
-    today = datetime.now().strftime("%Y-%m-%d")
-    today_searches = sum(1 for s in user_stats.values() if s['daily'].get(today, 0))
-    uptime_hours = (datetime.now() - bot_start_time).seconds // 3600
-    
+    total = sum(s['total'] for s in user_stats.values())
     await update.message.reply_text(
-        f"📊 *बॉट आंकड़े*\n\n"
-        f"👥 वेरिफाइड यूजर्स: `{len(verified_users)}`\n"
-        f"🔍 कुल सर्च: `{total_searches}`\n"
-        f"📅 आज के सर्च: `{today_searches}`\n"
-        f"⏱️ अपटाइम: `{uptime_hours} घंटे`\n"
-        f"📢 चैनल: {CHANNEL_NAME}\n"
-        f"🎉 *बॉट मुफ्त और 24x7 चालू है!*",
+        f"📊 *आंकड़े*\n👥 यूजर्स: `{len(verified_users)}`\n🔍 सर्च: `{total}`",
         parse_mode="Markdown"
     )
 
 async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not verified_users:
-        await update.message.reply_text("अभी कोई यूजर नहीं है")
+        await update.message.reply_text("कोई यूजर नहीं")
         return
-    
-    msg = "📋 *यूजर्स लिस्ट*\n\n"
-    for i, (uid, date) in enumerate(list(verified_users.items())[:20], 1):
-        searches = user_stats.get(uid, {}).get('total', 0)
-        msg += f"{i}. `{uid}` - {searches} सर्च\n"
-    
-    if len(verified_users) > 20:
-        msg += f"\n... और {len(verified_users)-20} यूजर"
-    
+    msg = "📋 *यूजर्स*\n"
+    for i, uid in enumerate(list(verified_users.keys())[:20], 1):
+        s = user_stats.get(uid, {}).get('total', 0)
+        msg += f"{i}. `{uid}` - {s} सर्च\n"
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def admin_userfind(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
-        await update.message.reply_text("❌ उपयोग: `/userfind <user_id>`\n\nउदाहरण: `/userfind 8481566006`", parse_mode="Markdown")
+        await update.message.reply_text("❌ `/userfind <id>`")
         return
-    
     try:
-        target = int(args[0])
-        if target not in verified_users:
-            await update.message.reply_text(f"❌ यूजर `{target}` नहीं मिला", parse_mode="Markdown")
+        uid = int(args[0])
+        if uid not in verified_users:
+            await update.message.reply_text("यूजर नहीं मिला")
             return
-        
-        stats = user_stats.get(target, {"total": 0})
-        joined = verified_users[target].strftime("%Y-%m-%d %H:%M")
-        
-        await update.message.reply_text(
-            f"👤 *यूजर इन्फो*\n\n"
-            f"🆔 आईडी: `{target}`\n"
-            f"✅ सर्च: `{stats['total']}`\n"
-            f"📅 जॉइन: `{joined}`",
-            parse_mode="Markdown"
-        )
-    except ValueError:
-        await update.message.reply_text("❌ सही यूजर आईडी भेजें")
+        s = user_stats.get(uid, {}).get('total', 0)
+        await update.message.reply_text(f"👤 यूजर `{uid}`\n✅ सर्च: `{s}`", parse_mode="Markdown")
+    except:
+        await update.message.reply_text("❌ गलत ID")
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
-        await update.message.reply_text("❌ उपयोग: `/broadcast <संदेश>`\n\nउदाहरण: `/broadcast नया अपडेट आ गया है!`", parse_mode="Markdown")
+        await update.message.reply_text("❌ `/broadcast <संदेश>`")
         return
-    
     msg = " ".join(args)
     success = 0
-    fail = 0
-    
-    status = await update.message.reply_text("📢 ब्रॉडकास्ट शुरू...")
-    
-    for user_id in verified_users:
+    status = await update.message.reply_text("📢 ब्रॉडकास्ट...")
+    for uid in verified_users:
         try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"📢 *घोषणा*\n\n{msg}\n\n─\n👑 @dinamic80",
-                parse_mode="Markdown"
-            )
+            await context.bot.send_message(chat_id=uid, text=f"📢 *घोषणा*\n\n{msg}", parse_mode="Markdown")
             success += 1
             await asyncio.sleep(0.05)
         except:
-            fail += 1
-    
-    await status.edit_text(f"✅ ब्रॉडकास्ट खत्म!\n\nसफल: `{success}`\nअसफल: `{fail}`", parse_mode="Markdown")
+            pass
+    await status.edit_text(f"✅ भेजा: `{success}` यूजर्स को")
 
 async def admin_logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    if user_id in admin_session:
-        del admin_session[user_id]
-    await update.message.reply_text("🔒 एडमिन सेशन खत्म हुआ")
+    uid = str(update.effective_user.id)
+    if uid in admin_session:
+        del admin_session[uid]
+    await update.message.reply_text("🔒 लॉगआउट")
 
 # === एरर हैंडलर ===
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Error: {context.error}")
-    if "Conflict" in str(context.error):
-        logger.warning("Conflict error – सिर्फ एक instance चलाएं")
 
 # === MAIN ===
 def main():
-    # Flask thread शुरू करो (Render के लिए port bind करने के लिए)
     Thread(target=run_flask, daemon=True).start()
     
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # यूजर कमांड्स
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("mystats", mystats))
     app.add_handler(CommandHandler("ping", ping))
     app.add_handler(CommandHandler("num", num_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # एडमिन कमांड्स
     app.add_handler(CommandHandler("admin", admin_login))
     app.add_handler(CommandHandler("stats", admin_stats))
     app.add_handler(CommandHandler("users", admin_users))
     app.add_handler(CommandHandler("userfind", admin_userfind))
     app.add_handler(CommandHandler("broadcast", admin_broadcast))
     app.add_handler(CommandHandler("adminlogout", admin_logout))
-    
-    # कॉलबैक
     app.add_handler(CallbackQueryHandler(verify_callback, pattern="^verify$"))
-    
-    # एरर हैंडलर
     app.add_error_handler(error_handler)
     
     print("="*50)
-    print("✅ नंबर इन्फो बॉट चालू हो गया!")
+    print("✅ नंबर इन्फो बॉट चालू!")
     print(f"📢 चैनल: {CHANNEL_NAME}")
-    print(f"👑 एडमिन: {ADMIN_CHAT_ID}")
-    print(f"🔑 पासवर्ड: {ADMIN_PASSWORD}")
-    print(f"🎉 बॉट 24x7 चालू रहेगा!")
+    print(f"🎉 बिल्कुल मुफ्त!")
     print("="*50)
     
-    # drop_pending_updates=True से Conflict error ठीक होगा
     app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
